@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-# Resource id prefix -> system that owns it. Matches the system_id values used in sample_output.csv.
+# Resource id prefix -> system that owns it (the system_id values of the output contract).
 PREFIX_SYSTEM = {
     "account": "account_service",
     "search": "search_service",

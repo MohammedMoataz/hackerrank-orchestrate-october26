@@ -9,9 +9,9 @@ from .linker import Linker
 from .planner import Auditor
 
 
-def build(use_ocr: bool = True):
+def build(use_ocr: bool = True, root=None):
     t0 = time.time()
-    ds = loader.load()
+    ds = loader.load(root) if root else loader.load()
     idx = IdentityIndex(ds)
     observations, stats = evidence.parse_all(ds, use_ocr=use_ocr)
     linker = Linker(ds, idx, observations)

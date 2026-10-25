@@ -120,6 +120,8 @@ class Auditor:
         else:
             status = "COMPLETE"
             for r in recs:
+                if not r.evidence and r.system_id != "account_service":
+                    continue          # a COMPLETE verification must cite evidence from before the cutoff
                 ev = r.evidence or self.absence_evidence(req, recs)
                 steps.append(Step("VERIFICATION", r.system_id, r.resource_id, r.treatment.verification,
                                   OP_STATE[r.treatment.verification], ev))

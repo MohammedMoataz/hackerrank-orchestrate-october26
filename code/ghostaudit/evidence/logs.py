@@ -14,7 +14,8 @@ from collections import OrderedDict
 from ..model import ABSENT, ACTIVE, ANONYMIZED, BLOCKED, DISABLED, IDENTIFIABLE, PRESENT, REDACTED, Observation, RESOURCE_RE, system_of
 from .common import QUERY_FIELDS, RESULT_STATE, ids_in_value, is_null, truthy
 
-PAIR_RE = re.compile(r'"?([A-Za-z_][A-Za-z0-9_]*)"?\s*[=:]\s*("([^"]*)"|[^\s,}|]+)')
+PAIR_RE = re.compile(r'(?<![\w"])([A-Za-z_][A-Za-z0-9_]*)=("([^"]*)"|[^\s,}|]+)')     # key=value, key="value"
+JSON_PAIR_RE = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:\s*("([^"]*)"|[^\s,}]+)')    # "key": value
 TRACE_RE = re.compile(r"\b(?:tr|rb)-[A-Za-z0-9-]+")
 EVENT_RES = [re.compile(r"\]\s+([a-z_]+):"), re.compile(r"\|\s*([a-z_]+)\s*\|\s*[A-Za-z_]+=")]
 CONTENT_FIELDS = {"email", "customer_email", "owner_email", "requester_email", "customer_reference",
@@ -24,7 +25,8 @@ POSITIVE, NEGATIVE = "positive", "negative"
 
 
 def tokenize(line: str) -> dict:
-    line = line.replace('\\"', '"')
+    # Cloud exports wrap the payload in message="...": unwrap it so its pairs are read normally.
+    line = line.replace('\\"', '"').replace('message="', 'message ')
     kv: dict = {}
     brace = line.find("{")
     if brace != -1 and line.rstrip().endswith("}"):
@@ -32,10 +34,11 @@ def tokenize(line: str) -> dict:
             kv.update({k: v for k, v in json.loads(line[brace:]).items()})
         except json.JSONDecodeError:
             pass
-    for key, raw, quoted in PAIR_RE.findall(line):
-        if key not in kv:
-            kv[key] = quoted if raw.startswith('"') else raw
-    if "event" not in kv or not kv["event"] or kv["event"] == "instance=":
+    for rx in (PAIR_RE, JSON_PAIR_RE):
+        for key, raw, quoted in rx.findall(line):
+            if key not in kv:
+                kv[key] = quoted if raw.startswith('"') else raw
+    if not kv.get("event"):
         for rx in EVENT_RES:
             m = rx.search(line)
             if m:
