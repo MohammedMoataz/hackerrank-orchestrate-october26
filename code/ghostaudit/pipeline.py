@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from . import evidence, intent, loader
+from . import evidence, intent, loader, policy
 from .identity import IdentityIndex
 from .linker import Linker
 from .loader import Dataset
@@ -27,6 +27,6 @@ def build(use_ocr: bool = True, root: Path | None = None) -> Pipeline:
     linker = Linker(ds, idx, observations, is_deletion=lambda r: intent.classify(r.request_text)[0])
     account_files = {o.file_id for o in observations if o.system_id == "account_service"}
     states = StateResolver(linker.obs_by_rid, ds.evidence_files, account_files)
-    auditor = Auditor(idx, linker, states, classify=intent.classify)
+    auditor = Auditor(idx, linker, states, policy.Policy(ds.rules), classify=intent.classify)
     stats.update(observations=len(observations), build_seconds=round(time.time() - t0, 2))
     return Pipeline(ds, auditor, stats)

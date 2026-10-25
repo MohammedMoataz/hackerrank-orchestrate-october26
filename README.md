@@ -16,7 +16,7 @@ Python 3.10+ standard library only. Two optional system tools:
 sudo apt install poppler-utils tesseract-ocr   # pdftotext for PDFs, tesseract for the 11 console screenshots
 ```
 
-Without `tesseract` the screenshots are skipped (the run summary says so); without `pdftotext` PDFs are skipped.
+Without `tesseract` the screenshots are skipped; without `pdftotext` the PDFs are skipped. The run summary lists both.
 No API keys or `.env` are needed.
 
 ## Run
@@ -58,7 +58,7 @@ canonical ordering, evidence ids, validator ─► output.csv
 | `code/ghostaudit/identity.py` | current + historical identifiers from `user_identities.csv` and `user_audit_log.csv` |
 | `code/ghostaudit/evidence/` | one reader per content shape (`records`, `sql`, `logs`, `text`, `ocr`) |
 | `code/ghostaudit/linker.py` | which records belong to which request |
-| `code/ghostaudit/policy.py` | category → compliant state and the find / fix / verify operations |
+| `code/ghostaudit/policy.py` | builds the policy from `deletion_rules.csv`: each action → compliant state and find / fix / verify operations |
 | `code/ghostaudit/state.py` | a record's state at the cutoff (latest evidence captured by then) |
 | `code/ghostaudit/planner.py` | status, steps and evidence citations for one request |
 | `code/ghostaudit/pipeline.py` | composition root: builds the components and injects their dependencies |

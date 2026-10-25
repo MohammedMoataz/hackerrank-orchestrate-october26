@@ -61,11 +61,24 @@ class LogTokenizerTest(unittest.TestCase):
 
 
 class PolicyTest(unittest.TestCase):
-    def test_every_rule_category_has_a_treatment(self):
+    def test_policy_follows_rules_file(self):
         import csv
         with open(CODE.parent / "dataset" / "deletion_rules.csv", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                self.assertIn(row["data_category"], policy.POLICY, row)
+            rules = list(csv.DictReader(f))
+        pol = policy.Policy(rules)
+        expected = {"DELETE": "DELETE_RECORD", "REDACT": "REDACT_RECORD", "ANONYMIZE": "ANONYMIZE_RECORD"}
+        for r in rules:
+            t = pol.by_category[r["data_category"]]
+            if r["required_action"] == "RETAIN" and "restore" in r["condition"].lower():
+                self.assertEqual(t.remediation, "BLOCK_RESTORE", r)        # archive kept, restore blocked
+            elif r["required_action"] == "RETAIN":
+                self.assertTrue(t.retain and t.verification == "VERIFY_RECORD_PRESENT", r)
+            else:
+                self.assertEqual(t.remediation, expected[r["required_action"]], r)
+
+    def test_unknown_action_is_rejected(self):
+        with self.assertRaises(ValueError):
+            policy.Policy([{"rule_id": "x", "data_category": "X", "condition": "", "required_action": "SHRED"}])
 
     def test_canonical_order(self):
         steps = [Step("VERIFICATION", "search_service", "search_1", "VERIFY_RECORD_ABSENT", "ABSENT"),
@@ -77,6 +90,17 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(ops, ["REPORT_REMAINING_RECORD", "REPORT_EXPOSED_PII", "DISABLE_DATA_FLOW",
                                "DELETE_RECORD", "VERIFY_RECORD_ABSENT"])
         self.assertEqual(len(OPERATION_ORDER), 15)
+
+
+class AttributionCostTest(unittest.TestCase):
+    """The precedence encoded in the linker's costs: content link > claim consistency > own evidence > timing."""
+
+    def test_precedence(self):
+        from ghostaudit import linker as L
+        self.assertLess(L.COST_CONTENT_LINK, L.COST_CLAIM_MATCH - L.COST_CLAIM_MISMATCH + L.COST_OWN_EVIDENCE)
+        self.assertLess(L.COST_CLAIM_MATCH - L.COST_CLAIM_MISMATCH, L.COST_OWN_EVIDENCE)
+        # timing (|offset| of at most ~3 h inside the run window) never outweighs shared evidence
+        self.assertLess(3.0, -L.COST_OWN_EVIDENCE)
 
 
 class LeakageTest(unittest.TestCase):

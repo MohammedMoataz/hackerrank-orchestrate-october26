@@ -25,8 +25,9 @@ class Record:
 
 
 class Auditor:
-    def __init__(self, idx: IdentityIndex, linker: Linker, states: StateResolver, classify: Classifier):
-        self.idx, self.linker, self.states, self.classify = idx, linker, states, classify
+    def __init__(self, idx: IdentityIndex, linker: Linker, states: StateResolver, rules: policy.Policy,
+                 classify: Classifier):
+        self.idx, self.linker, self.states, self.rules, self.classify = idx, linker, states, rules, classify
 
     # -- gathering ---------------------------------------------------------------------------
     def _choose_account(self, linked: dict, run: set[str]) -> str | None:
@@ -48,7 +49,7 @@ class Auditor:
         account = self._choose_account(linked, run)
         if account:
             ob = self.states.state_at(account, req.audit_at)
-            t = policy.treatment("USER_PROFILE", "account_service")
+            t = self.rules.treatment("USER_PROFILE", "account_service")
             state = policy.normalise_state(ob.state, t) if ob else ABSENT
             out.append(Record(account, "account_service", state, t, ob.file_id if ob else "", how(account)))
 
@@ -62,11 +63,11 @@ class Auditor:
             if ob is None:
                 later = self.states.any_observation(rid) if rid in retained else None
                 if later:
-                    t = policy.treatment(later.category, later.system_id)
+                    t = self.rules.treatment(later.category, later.system_id)
                     if t is not None:
                         out.append(Record(rid, later.system_id, "PRESENT", t, "", "retained, identified later"))
                 continue
-            t = policy.treatment(ob.category, ob.system_id)
+            t = self.rules.treatment(ob.category, ob.system_id)
             if t is not None:
                 out.append(Record(rid, ob.system_id, policy.normalise_state(ob.state, t), t, ob.file_id, how(rid)))
         return out

@@ -48,7 +48,8 @@ def score(pred: dict, gold: dict, cases: list[str]) -> dict:
         tp += len(both); fp += len(set(pk) - set(gk)); fn += len(set(gk) - set(pk))
         pmap, gmap = {key(s): s for s in pst}, {key(s): s for s in gst}
         for k in both:
-            for f in ("phase", "system_id", "resource_id", "operation", "state", "evidence_id", "step_no"):
+            # Matching already fixes phase, operation, system_id and resource_id; score the rest.
+            for f in ("state", "evidence_id", "step_no"):
                 field_total += 1
                 field_ok += pmap[k][f] == gmap[k][f]
             ev_total += 1
@@ -61,7 +62,7 @@ def score(pred: dict, gold: dict, cases: list[str]) -> dict:
         "row_exact_accuracy": row_ok / n,
         "sequence_accuracy": seq_ok / n,
         "step_precision": p, "step_recall": r, "step_f1": 2 * p * r / (p + r) if p + r else 0.0,
-        "field_accuracy_matched_steps": field_ok / field_total if field_total else 0.0,
+        "field_accuracy_matched_steps": field_ok / field_total if field_total else 0.0,   # state, evidence, step_no
         "evidence_accuracy_matched_steps": ev_ok / ev_total if ev_total else 0.0,
     }
 

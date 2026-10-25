@@ -20,7 +20,7 @@ any predictor module mentions it.
 | row exact accuracy | share of cases whose status and whole `steps_json` array equal the answer |
 | sequence accuracy | share of cases whose ordered list of (phase, operation, system, resource) equals the answer |
 | step precision / recall / F1 | steps matched on (phase, operation, system_id, resource_id), over all cases |
-| field accuracy | on matched steps, share of the 7 fields (incl. `step_no`, `state`, `evidence_id`) that are equal |
+| field accuracy | on matched steps, share of `state`, `evidence_id` and `step_no` that are equal (the other four fields are fixed by the match itself) |
 | evidence accuracy | on matched steps, share with the right `evidence_id` |
 
 The samples are split two ways: **dev / holdout** (even / odd case numbers; rules were tuned looking at dev
@@ -39,11 +39,11 @@ hand-made scenarios; 11–32 follow the generated cohort pattern that most of th
 | step_precision | 0.984 | 0.990 | 0.978 | 1.000 | 0.981 |
 | step_recall | 0.964 | 0.950 | 0.978 | 0.968 | 0.963 |
 | step_f1 | 0.974 | 0.969 | 0.978 | 0.984 | 0.972 |
-| field_accuracy_matched_steps | 0.995 | 0.989 | 1.000 | 0.995 | 0.995 |
+| field_accuracy_matched_steps | 0.987 | 0.975 | 1.000 | 0.989 | 0.987 |
 | evidence_accuracy_matched_steps | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
 <!-- metrics:end -->
 
-On the full evaluation set (`python3 code/main.py`): 518 rows, 159 COMPLETE, 349 INCOMPLETE, 10 NOT_APPLICABLE;
+On the full evaluation set (`python3 code/main.py`): 518 rows, 149 COMPLETE, 359 INCOMPLETE, 10 NOT_APPLICABLE;
 the built-in validator (header, order, operations, phases, states, consecutive step numbers, evidence ids that
 exist and were captured at or before `audit_at`) passes.
 
@@ -112,6 +112,8 @@ Each row is one change, measured on all 32 samples (status accuracy / step F1 / 
 | 2 | Joint, cost-based matching of deletion-run records to requests (content link ≫ claim consistency ≫ own evidence file ≫ timing) instead of greedy elimination in id order | `account_8491` took case_12's slot, leaving the right `account_9797` unassigned | 1.000 | 0.974 | 0.812 |
 | 3 | COMPLETE verifications only for records observed before the cutoff | a retained record known only from later evidence got a citation to a file that does not mention it | 1.000 | 0.974 | 0.812 |
 | 4 | Log tokenizer: separate `key=value` and JSON pair patterns; unwrap cloud `message="…"` payloads | unit test showed `event: key="v"` lines lost their resource id | 1.000 | 0.974 | 0.812 |
+| 5 | An independent code review found that 10 evaluation cases with no evidence before the cutoff came out COMPLETE with no steps; COMPLETE now requires at least one cited verification, otherwise the case stays INCOMPLETE (and the validator rejects an empty COMPLETE) | "found nothing" was treated as proof of deletion | 1.000 | 0.974 | 0.812 |
+| 6 | Same review: policy built from `deletion_rules.csv` at run time instead of a hand-copied table; missing `pdftotext` / unreadable files reported in the run summary; a negative marker check no longer counts as ownership; identifiers shared by two people never resolve; field accuracy no longer counts fields fixed by the match (0.995 → 0.987) | silent failure modes and an inflated metric | 1.000 | 0.974 | 0.812 |
 
 ### Strategy comparison
 
@@ -129,7 +131,8 @@ are still caught, see unit tests).
 
 ## Known limitations
 
-* Screenshots: when Tesseract is not installed, the 11 PNG files are skipped and the run summary says so.
+* Screenshots: when Tesseract is not installed, the 11 PNG files are skipped and the run summary says so;
+  the 10 requests that then have no evidence before their cutoff are reported INCOMPLETE with no steps.
   About a dozen evaluation requests (case_33–63) rely on them.
 * Ties between interleaved deletion runs are settled deterministically but can be wrong (see table above).
 * Records that appear in no participant file cannot be reported.
