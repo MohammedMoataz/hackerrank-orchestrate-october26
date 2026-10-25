@@ -22,7 +22,7 @@ ordering) is deterministic Python; screenshots are read with local OCR.
 | Evidence files parsed | 94 (.json 28, .log 26, .pdf 4, .png 11, .sql 24, .txt 1) |
 | Observations extracted | 2894 |
 | Screenshots | Tesseract not installed: the 11 screenshots were skipped |
-| Wall-clock time | 0.5 s on one CPU core |
+| Wall-clock time | 3.3 s on one CPU core |
 | Output validation | passed |
 
 AI assistance was used during development (Claude Code, model claude-opus-5-5); that is recorded in
