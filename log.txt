@@ -157,3 +157,64 @@ repo_root=/home/ign-j2r3hk3/work/hackathons/Orchestrate/Oct
 worktree=main
 parent_agent=none
 
+## [2026-10-25T05:00:16Z] Run agent on deletion_requests.csv and summarise results
+
+User Prompt (verbatim, secrets redacted):
+we need to run the sript against the deletion_requests csv file and give me the result
+dataset/deletion_requests.csv
+
+Agent Response Summary:
+Ran python3 code/main.py on dataset/deletion_requests.csv. It wrote output.csv with 518 rows (159 COMPLETE, 349 INCOMPLETE, 10 NOT_APPLICABLE) in 0.6 s with zero model calls, and the contract validator passed. Summarised the claimed-versus-audited breakdown and the findings by type and system; Tesseract is still missing, so screenshots were skipped.
+
+Actions:
+* python3 code/main.py; summary script over output.csv; python3 code/main.py --explain case_36
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=main
+repo_root=/home/ign-j2r3hk3/work/hackathons/Orchestrate/Oct
+worktree=main
+parent_agent=none
+
+## [2026-10-25T05:25:48Z] Review a competitor PR analysis (upstream PR #7)
+
+User Prompt (verbatim, secrets redacted):
+review and evaluate this solution
+[pasted: a written analysis of upstream PR #7, "Ghost Data Audit Agent" by a Google Jules agent]
+
+Agent Response Summary:
+Fetched the PR #7 diff read-only into the scratchpad and checked the analysis's key claims against the code: deletion_rules.csv is loaded but never used, COMPLETE cases return no steps, the custom test cases only print messages, the usage report describes LLM calls the code never makes, the runtime logger appends to log.txt, and from code import config resolves to the stdlib code module when run as a script. All checked claims held. Did not run the PR (pandas and pydantic are not installed) and did not copy any of its code. Compared it with our pipeline, which already covers every recommendation in the analysis.
+
+Actions:
+* gh pr view/diff 7 (read-only, scratchpad); grep checks on the diff
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=main
+repo_root=/home/ign-j2r3hk3/work/hackathons/Orchestrate/Oct
+worktree=main
+parent_agent=none
+
+## [2026-10-25T05:43:05Z] Best-practice and SOLID review of the codebase, with fixes
+
+User Prompt (verbatim, secrets redacted):
+I am building it on another machine, but can you search for best practices for paython, scripts, workflows, design patterns and make sure we foollow the best practices in our codebase and code review principles. SOLID principles as well.
+
+Agent Response Summary:
+Researched SOLID-in-Python, Google's code-review checklist and current Python practice, audited the codebase, and refactored with output.csv kept byte-identical (sha256 checked) and sample metrics unchanged. Changes: an evidence reader registry (open/closed), an injected classifier and a pipeline composition root (dependency inversion), state.py and report.py split out (single responsibility), per-file error isolation, frozen value types and dead code removed. An independent critic agent then reviewed the code; after verifying each finding, fixed B1 (10 COMPLETE rows with no steps are now INCOMPLETE, and the validator rejects empty COMPLETE rows), B2 (pdftotext failures are reported), per-request run actions, negative marker checks, ambiguous aliases, a policy built from deletion_rules.csv, and an honest field-accuracy metric. 15 tests pass.
+
+Actions:
+* WebSearch x3; edited code/ghostaudit/* (evidence/__init__, linker, planner, state, pipeline, report, policy, identity, model, logs, text, validate), code/main.py, code/evaluation/main.py, code/tests/*, README.md, evaluation_report.md
+* Agent: analysis-coach:critic (independent review, read-only)
+* Local commits a4a27c7, a74a622, b9d1716
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=main
+repo_root=/home/ign-j2r3hk3/work/hackathons/Orchestrate/Oct
+worktree=main
+parent_agent=none
+
