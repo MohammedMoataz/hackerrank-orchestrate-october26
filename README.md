@@ -59,7 +59,10 @@ canonical ordering, evidence ids, validator ─► output.csv
 | `code/ghostaudit/evidence/` | one reader per content shape (`records`, `sql`, `logs`, `text`, `ocr`) |
 | `code/ghostaudit/linker.py` | which records belong to which request |
 | `code/ghostaudit/policy.py` | category → compliant state and the find / fix / verify operations |
-| `code/ghostaudit/planner.py` | state at the cutoff, status, steps, evidence citations |
+| `code/ghostaudit/state.py` | a record's state at the cutoff (latest evidence captured by then) |
+| `code/ghostaudit/planner.py` | status, steps and evidence citations for one request |
+| `code/ghostaudit/pipeline.py` | composition root: builds the components and injects their dependencies |
+| `code/ghostaudit/report.py` | writes `output.csv` and the usage report |
 | `code/ghostaudit/validate.py` | the submission contract as checks |
 | `code/evaluation/main.py` | sample scoring (case, row, step, field, sequence accuracy) |
 | `code/tests/` | unit tests, five custom end-to-end cases, leakage guards |

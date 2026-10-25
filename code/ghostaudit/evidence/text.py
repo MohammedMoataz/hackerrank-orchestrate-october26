@@ -36,13 +36,11 @@ def pdf_text(path) -> str:
 def parse_pdf(path, file_id, captured_at) -> list[Observation]:
     """A PDF is one business document about one subject: every resource it names is present.
 
-    Documents that name no resource id (a statement number, an order register) are linked to
-    resources through data-catalog activity rows by the linker, using `references` below.
+    Documents that name no resource id (a statement number, an order register) yield nothing here.
     """
     text = pdf_text(path)
     ids = ids_in_value(text)
     out = []
-    lower = text.lower()
     for rid in sorted(set(RESOURCE_RE.findall(text))):
         system = system_of(rid)
         category = None
@@ -53,8 +51,3 @@ def parse_pdf(path, file_id, captured_at) -> list[Observation]:
         out.append(Observation(file_id, captured_at, system, rid, "PRESENT", category, frozenset(ids), frozenset(),
                                "pdf", "document"))
     return out
-
-
-def references(path) -> set[str]:
-    """Document reference numbers (statements, orders) a PDF mentions."""
-    return set(re.findall(r"\b(?:NST-\d{4}-\d{4}-\d{4}|ORD-\d{8})\b", pdf_text(path)))

@@ -142,6 +142,15 @@ class CustomCases(unittest.TestCase):
             "DISABLE_DATA_FLOW", "BLOCK_RESTORE", "DELETE_RECORD",
             "VERIFY_RECORD_ABSENT", "VERIFY_RECORD_ABSENT", "VERIFY_DATA_FLOW_DISABLED", "VERIFY_RESTORE_BLOCKED"])
 
+    def test_6_malformed_evidence_file_is_reported_not_fatal(self):
+        good = bundle([("search_service", "customer_search_documents",
+                        [{"resource_id": "search_900", "document": {"email": "test.person@example.com"}}])])
+        files = [("evidence_900", "evidence/records/bad.json", "2026-09-09T00:00:00Z", "{not json"),
+                 ("evidence_901", "evidence/records/good.json", "2026-09-10T00:00:00Z", good)]
+        status, steps = run_case(req("Please delete my account."), [account_delete()], files)
+        self.assertEqual(status, "INCOMPLETE")
+        self.assertIn(("REPORT_REMAINING_RECORD", "search_900", "evidence_901"), steps)
+
 
 if __name__ == "__main__":
     unittest.main()

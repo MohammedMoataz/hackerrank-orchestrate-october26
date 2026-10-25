@@ -1,18 +1,20 @@
-"""Audit one request: find its records, establish their state at the cutoff, plan the steps."""
+"""Audit one request: gather its records, read their state at the cutoff, plan the steps."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
-from . import intent, policy
+from . import policy
 from .identity import IdentityIndex
 from .linker import Linker
-from .model import ABSENT, OP_PHASE, OP_STATE, CaseResult, Observation, Request, Step, system_of
+from .model import ABSENT, OP_PHASE, OP_STATE, CaseResult, Request, Step, system_of
+from .state import StateResolver
 
-SEVERITY = {"IDENTIFIABLE": 3, "PRESENT": 3, "ACTIVE": 3, "REDACTED": 1, "ANONYMIZED": 1, "DISABLED": 1,
-            "BLOCKED": 1, "ABSENT": 0}
+Classifier = Callable[[str], tuple[bool, str]]     # request text -> (authorises deletion, reason)
+RETAINED_SYSTEMS = ("security_service", "legal_service")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Record:
     resource_id: str
     system_id: str
@@ -23,79 +25,82 @@ class Record:
 
 
 class Auditor:
-    def __init__(self, idx: IdentityIndex, linker: Linker, files_by_time: list[tuple[str, str]],
-                 account_files: list[tuple[str, str]]):
-        self.idx, self.linker = idx, linker
-        self.files_by_time = files_by_time          # [(captured_at, file_id)] sorted
-        self.account_files = account_files          # files that hold account records, sorted
+    def __init__(self, idx: IdentityIndex, linker: Linker, states: StateResolver, classify: Classifier):
+        self.idx, self.linker, self.states, self.classify = idx, linker, states, classify
 
-    def state_at(self, rid: str, cutoff: str) -> Observation | None:
-        """Latest observation captured at or before the cutoff; within one file the worst state wins."""
-        obs = [o for o in self.linker.obs_by_rid.get(rid, []) if o.captured_at <= cutoff]
-        if not obs:
-            return None
-        latest = max(o.captured_at for o in obs)
-        same = [o for o in obs if o.captured_at == latest]
-        return max(same, key=lambda o: (SEVERITY.get(o.state, 0), o.file_id))
+    # -- gathering ---------------------------------------------------------------------------
+    def _choose_account(self, linked: dict, run: set[str]) -> str | None:
+        """The account this request's deletion run handled, else the one evidence ties to the person."""
+        accounts_run = sorted(r for r in run if system_of(r) == "account_service")
+        if accounts_run:
+            return accounts_run[0]
+        accounts_linked = [r for r in linked if system_of(r) == "account_service"]
+        if accounts_linked:
+            return max(sorted(accounts_linked), key=lambda r: max(l.time for l in linked[r]))
+        return None
 
     def records(self, req: Request, uid: str) -> list[Record]:
         linked = self.linker.linked(uid, req.audit_at)
         run = set(self.linker.run_resources(req.case_id))
-        accounts_run = sorted(r for r in run if system_of(r) == "account_service")
-        accounts_linked = sorted(r for r in linked if system_of(r) == "account_service")
-        if accounts_run:
-            account = accounts_run[0]
-        elif accounts_linked:
-            account = max(accounts_linked, key=lambda r: max(l[0] for l in linked[r]))
-        else:
-            account = None
-        rids = {r for r in (set(linked) | run) if system_of(r) != "account_service"}
-        # Retained records (security audit, legal hold) are identified even from evidence captured
-        # after the cutoff: that only tells us which record exists. Their state still comes from
-        # evidence at or before the cutoff, and nothing captured later is ever cited.
-        retained = {r for r in self.linker.links.get(uid, {}) if system_of(r) in ("security_service", "legal_service")}
-        rids |= retained
-        out = []
+        how = lambda rid: "run" if rid in run else "evidence"
+        out: list[Record] = []
+
+        account = self._choose_account(linked, run)
         if account:
-            ob = self.state_at(account, req.audit_at)
+            ob = self.states.state_at(account, req.audit_at)
             t = policy.treatment("USER_PROFILE", "account_service")
             state = policy.normalise_state(ob.state, t) if ob else ABSENT
-            out.append(Record(account, "account_service", state, t, ob.file_id if ob else "",
-                              "run" if account in run else "evidence"))
-        for rid in sorted(rids):
-            ob = self.state_at(rid, req.audit_at)
-            if ob is None and rid in retained:
-                later = self.linker.obs_by_rid.get(rid, [])
-                if later:
-                    t = policy.treatment(later[0].category, later[0].system_id)
-                    out.append(Record(rid, later[0].system_id, "PRESENT", t, "", "retained, identified later"))
-                continue
+            out.append(Record(account, "account_service", state, t, ob.file_id if ob else "", how(account)))
+
+        # Retained records (security audit, legal hold) may be identified from evidence captured after
+        # the cutoff: that only tells us which record exists. Their state still comes from evidence at
+        # or before the cutoff, and nothing captured later is ever cited.
+        retained = {r for r in self.linker.links.get(uid, {}) if system_of(r) in RETAINED_SYSTEMS}
+        others = {r for r in (set(linked) | run) if system_of(r) != "account_service"} | retained
+        for rid in sorted(others):
+            ob = self.states.state_at(rid, req.audit_at)
             if ob is None:
+                later = self.states.any_observation(rid) if rid in retained else None
+                if later:
+                    t = policy.treatment(later.category, later.system_id)
+                    out.append(Record(rid, later.system_id, "PRESENT", t, "", "retained, identified later"))
                 continue
             t = policy.treatment(ob.category, ob.system_id)
-            if t is None:
-                continue
-            out.append(Record(rid, ob.system_id, policy.normalise_state(ob.state, t), t, ob.file_id,
-                              "run" if rid in run else "evidence"))
+            if t is not None:
+                out.append(Record(rid, ob.system_id, policy.normalise_state(ob.state, t), t, ob.file_id, how(rid)))
         return out
 
-    def absence_evidence(self, req: Request, records: list[Record]) -> str:
-        """Evidence for an account no file mentions: the request's own latest evidence file, else
-        the latest earlier capture of account records."""
-        own = sorted((self._captured(r.evidence), r.evidence) for r in records if r.evidence)
-        if own:
-            return own[-1][1]
-        prior = [f for t, f in self.account_files if t <= req.audit_at]
-        return prior[-1] if prior else ""
+    # -- planning ----------------------------------------------------------------------------
+    @staticmethod
+    def _plan_incomplete(recs: list[Record], violations: list[Record]) -> list[Step]:
+        """Findings and remediation for each violation, then checks for every remediated record,
+        the account, and the records policy requires to keep."""
+        steps = []
+        for r in violations:
+            if r.treatment.finding:
+                steps.append(Step("FINDING", r.system_id, r.resource_id, r.treatment.finding,
+                                  OP_STATE[r.treatment.finding], r.evidence))
+                steps.append(Step("REMEDIATION", r.system_id, r.resource_id, r.treatment.remediation,
+                                  OP_STATE[r.treatment.remediation]))
+        for r in recs:
+            if r in violations or r.system_id == "account_service" or r.treatment.retain:
+                steps.append(Step("VERIFICATION", r.system_id, r.resource_id, r.treatment.verification,
+                                  OP_STATE[r.treatment.verification]))
+        return steps
 
-    def _captured(self, file_id: str) -> str:
-        for t, f in self.files_by_time:
-            if f == file_id:
-                return t
-        return ""
+    def _plan_complete(self, req: Request, recs: list[Record]) -> list[Step]:
+        """Evidence-cited checks proving each record's compliant state at the cutoff."""
+        steps = []
+        for r in recs:
+            if not r.evidence and r.system_id != "account_service":
+                continue          # a COMPLETE verification must cite evidence from before the cutoff
+            ev = r.evidence or self.states.absence_evidence(req.audit_at, [x.evidence for x in recs])
+            steps.append(Step("VERIFICATION", r.system_id, r.resource_id, r.treatment.verification,
+                              OP_STATE[r.treatment.verification], ev))
+        return steps
 
     def audit(self, req: Request) -> CaseResult:
-        ok, why = intent.classify(req.request_text)
+        ok, why = self.classify(req.request_text)
         if not ok:
             return CaseResult(req.case_id, "NOT_APPLICABLE", [], [why])
         uid = self.idx.subject(req.email)
@@ -103,31 +108,16 @@ class Auditor:
             return CaseResult(req.case_id, "INCOMPLETE", [], ["request email matches no known identity"])
         recs = self.records(req, uid)
         violations = [r for r in recs if policy.violates(r.state, r.treatment)]
-        steps: list[Step] = []
-        notes = [f"subject {uid}", why] + [f"{r.resource_id}: {r.state} via {r.how} ({r.evidence or 'no file'})" for r in recs]
         if violations:
-            status = "INCOMPLETE"
-            for r in violations:
-                if r.treatment.finding:
-                    steps.append(Step("FINDING", r.system_id, r.resource_id, r.treatment.finding,
-                                      OP_STATE[r.treatment.finding], r.evidence))
-                    steps.append(Step("REMEDIATION", r.system_id, r.resource_id, r.treatment.remediation,
-                                      OP_STATE[r.treatment.remediation]))
-            for r in recs:
-                if r in violations or r.system_id == "account_service" or r.treatment.retain:
-                    steps.append(Step("VERIFICATION", r.system_id, r.resource_id, r.treatment.verification,
-                                      OP_STATE[r.treatment.verification]))
+            status, steps = "INCOMPLETE", self._plan_incomplete(recs, violations)
         else:
-            status = "COMPLETE"
-            for r in recs:
-                if not r.evidence and r.system_id != "account_service":
-                    continue          # a COMPLETE verification must cite evidence from before the cutoff
-                ev = r.evidence or self.absence_evidence(req, recs)
-                steps.append(Step("VERIFICATION", r.system_id, r.resource_id, r.treatment.verification,
-                                  OP_STATE[r.treatment.verification], ev))
+            status, steps = "COMPLETE", self._plan_complete(req, recs)
         unique = {(s.operation, s.system_id, s.resource_id): s for s in steps}
         ordered = sorted(unique.values(), key=Step.sort_key)
-        assert all(OP_PHASE[s.operation] == s.phase for s in ordered)
+        if any(OP_PHASE[s.operation] != s.phase for s in ordered):
+            raise ValueError(f"{req.case_id}: step phase does not match its operation")
+        notes = [f"subject {uid}", why] + [f"{r.resource_id}: {r.state} via {r.how} ({r.evidence or 'no file'})"
+                                           for r in recs]
         return CaseResult(req.case_id, status, ordered, notes)
 
 

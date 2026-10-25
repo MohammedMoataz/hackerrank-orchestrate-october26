@@ -84,7 +84,7 @@ class Activity:
     details: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Observation:
     """One fact an evidence file states about one resource.
 
@@ -103,7 +103,7 @@ class Observation:
     detail: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class Step:
     phase: str
     system_id: str
