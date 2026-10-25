@@ -50,6 +50,11 @@ class Auditor:
         else:
             account = None
         rids = {r for r in (set(linked) | run) if system_of(r) != "account_service"}
+        # Retained records (security audit, legal hold) are identified even from evidence captured
+        # after the cutoff: that only tells us which record exists. Their state still comes from
+        # evidence at or before the cutoff, and nothing captured later is ever cited.
+        retained = {r for r in self.linker.links.get(uid, {}) if system_of(r) in ("security_service", "legal_service")}
+        rids |= retained
         out = []
         if account:
             ob = self.state_at(account, req.audit_at)
@@ -59,6 +64,12 @@ class Auditor:
                               "run" if account in run else "evidence"))
         for rid in sorted(rids):
             ob = self.state_at(rid, req.audit_at)
+            if ob is None and rid in retained:
+                later = self.linker.obs_by_rid.get(rid, [])
+                if later:
+                    t = policy.treatment(later[0].category, later[0].system_id)
+                    out.append(Record(rid, later[0].system_id, "PRESENT", t, "", "retained, identified later"))
+                continue
             if ob is None:
                 continue
             t = policy.treatment(ob.category, ob.system_id)

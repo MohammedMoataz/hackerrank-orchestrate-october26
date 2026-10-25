@@ -90,12 +90,16 @@ class Linker:
                 acts[a.resource_id] = a
                 cands[a.resource_id].add(r.case_id)
         by_case = {r.case_id: r for r in reqs}
-        for rid, cs in cands.items():
-            # A content link to one of the candidates' subjects settles it.
+        for rid, cs in list(cands.items()):
+            # A content link settles ownership: to one of the candidates' subjects, or to someone
+            # else entirely, in which case no candidate may take the resource.
             owners = {uid for uid in self.links if rid in self.links[uid]}
             direct = {c for c in cs if subj[c] in owners}
             if direct:
                 cands[rid] = direct
+                continue
+            if owners:
+                del cands[rid]
                 continue
             # Otherwise keep candidates whose own evidence files observed this resource.
             seen_in = {ob.file_id for ob in self.obs_by_rid.get(rid, [])}

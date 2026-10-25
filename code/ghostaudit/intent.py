@@ -2,7 +2,8 @@
 
 Rules, not a model: the request texts come in six languages, and the non-deletion requests say so
 explicitly ("not asking for deletion", "do not close the account", "marketing lists only").
-An explicit non-deletion signal wins over deletion words that appear in a negated or limited sense.
+An explicit non-deletion signal wins over deletion words that appear in a negated or limited sense;
+without one, the request is treated as concerning deletion (follow-ups such as "is my data gone?").
 """
 from __future__ import annotations
 
@@ -32,6 +33,6 @@ def classify(text: str) -> tuple[bool, str]:
     if non:
         return False, "non-deletion signal: " + non[0]
     dels = [p.pattern for p in _DEL if p.search(text)]
-    if dels:
-        return True, "deletion signal: " + dels[0]
-    return False, "no deletion signal"
+    # Requests to check or finish a deletion ("tell me whether it has been removed") still concern
+    # deletion, so only an explicit non-deletion signal turns a request away.
+    return True, ("deletion signal: " + dels[0]) if dels else "deletion follow-up (no non-deletion signal)"
