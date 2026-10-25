@@ -96,16 +96,26 @@ def main(argv=None) -> int:
     ap.add_argument("--diff", action="store_true")
     ap.add_argument("--markdown", action="store_true")
     ap.add_argument("--no-ocr", action="store_true")
+    ap.add_argument("--write-report", action="store_true",
+                    help="refresh the metrics table inside evaluation_report.md")
     args = ap.parse_args(argv)
     _, pred, gold = run(use_ocr=not args.no_ocr)
     rep = report(pred, gold)
     metrics = list(next(iter(rep.values())).keys())
+    table = ["| metric | " + " | ".join(rep) + " |", "|---|" + "---|" * len(rep)]
+    for m in metrics:
+        vals = [str(v[m]) if m == "cases" else f"{v[m]:.3f}" for v in rep.values()]
+        table.append(f"| {m} | " + " | ".join(vals) + " |")
+    if args.write_report:
+        path = Path(__file__).with_name("evaluation_report.md")
+        text = path.read_text(encoding="utf-8")
+        start, end = "<!-- metrics:start -->", "<!-- metrics:end -->"
+        head, rest = text.split(start, 1)
+        _, tail = rest.split(end, 1)
+        path.write_text(head + start + "\n" + "\n".join(table) + "\n" + end + tail, encoding="utf-8")
+        print(f"updated {path}")
     if args.markdown:
-        print("| metric | " + " | ".join(rep) + " |")
-        print("|---|" + "---|" * len(rep))
-        for m in metrics:
-            vals = [str(v[m]) if m == "cases" else f"{v[m]:.3f}" for v in rep.values()]
-            print(f"| {m} | " + " | ".join(vals) + " |")
+        print("\n".join(table))
     else:
         for g, v in rep.items():
             print(f"{g:<18} " + "  ".join(f"{m}={v[m]:.3f}" if m != "cases" else f"n={v[m]}" for m in metrics))

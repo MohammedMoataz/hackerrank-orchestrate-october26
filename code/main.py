@@ -64,7 +64,46 @@ def main(argv=None) -> int:
         print(f"VALIDATION FAILED ({len(errors)}):", *errors[:20], sep="\n  ")
         return 2
     print("validation passed")
+    write_usage_report(stats, len(results), counts, time.time() - t0, out)
     return 0
+
+
+def write_usage_report(stats: dict, n: int, counts: dict, seconds: float, out: Path) -> None:
+    """Summarise the run that produced output.csv in code/evaluation/usage_report.md."""
+    ocr = stats["ocr"]
+    ocr_line = (f"{ocr['images']} screenshots read with Tesseract OCR in {ocr['seconds']} s"
+                if ocr.get("available") else "Tesseract not installed: the 11 screenshots were skipped")
+    text = f"""# Usage report
+
+Summary of the final full-dataset run that produced `{out.name}` (`python3 code/main.py`).
+This file is rewritten by every full run.
+
+## Models
+
+The agent makes **no model calls**. Every decision (intent, identity, evidence parsing, state, policy,
+ordering) is deterministic Python; screenshots are read with local OCR.
+
+| Provider | Model | Calls | Input tokens | Output tokens | Total tokens | Avg tokens / request | Est. cost | Cost / request |
+|---|---|---|---|---|---|---|---|---|
+| none | none | 0 | 0 | 0 | 0 | 0 | $0.00 | $0.00 |
+| **Total** | | **0** | **0** | **0** | **0** | **0** | **$0.00** | **$0.00** |
+
+## Run
+
+| Item | Value |
+|---|---|
+| Requests audited | {n} |
+| Status counts | COMPLETE {counts['COMPLETE']}, INCOMPLETE {counts['INCOMPLETE']}, NOT_APPLICABLE {counts['NOT_APPLICABLE']} |
+| Evidence files parsed | {stats['files']} ({', '.join(f'{k} {v}' for k, v in sorted(stats['by_format'].items()))}) |
+| Observations extracted | {stats['observations']} |
+| Screenshots | {ocr_line} |
+| Wall-clock time | {seconds:.1f} s on one CPU core |
+| Output validation | passed |
+
+AI assistance was used during development (Claude Code, model claude-opus-5-5); that is recorded in
+`log.txt` and is not part of the runtime pipeline or its cost.
+"""
+    (Path(__file__).resolve().parent / "evaluation" / "usage_report.md").write_text(text, encoding="utf-8")
 
 
 if __name__ == "__main__":
