@@ -136,3 +136,24 @@ Parent Agent: none
 Language: py
 Time Remaining: 8h 50m (contest end 2026-10-25T13:30Z per contest REST metadata)
 
+## [2026-10-25T04:50:07Z] Build deterministic agent, evaluation, tests and reports
+
+User Prompt (verbatim, secrets redacted):
+proceed
+
+Agent Response Summary:
+Built the approved Option A pipeline in code/ghostaudit (evidence readers for JSON, SQL replicas, six log syntaxes, handover text, PDFs and an OCR hook; identity with historical identifiers; linker with joint cost-based attribution of deletion-worker runs; policy table; planner; validator) and code/main.py, which writes a validated 518-row output.csv in about a second with zero model calls. Built code/evaluation/main.py and iterated on sample diffs: status accuracy 0.781 -> 1.000, step F1 0.791 -> 0.974, row-exact 0.406 -> 0.812, with holdout tracking dev. Added unittest suites (unit tests, five custom end-to-end cases, leakage guards), README, evaluation_report.md and an auto-written usage_report.md. Tesseract is still not installed, so about a dozen screenshot-dependent cases remain weak.
+
+Actions:
+* Created code/ghostaudit/*, code/main.py, code/evaluation/main.py, code/tests/*, README.md, code/evaluation/*.md
+* python3 code/main.py; python3 code/evaluation/main.py --diff; python3 -m unittest discover -s code/tests
+* Local commits a5e6929..d246b2f (not pushed, per user decision)
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=main
+repo_root=/home/ign-j2r3hk3/work/hackathons/Orchestrate/Oct
+worktree=main
+parent_agent=none
+
