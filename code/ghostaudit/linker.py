@@ -90,53 +90,39 @@ class Linker:
                 acts[a.resource_id] = a
                 cands[a.resource_id].add(r.case_id)
         by_case = {r.case_id: r for r in reqs}
-        for rid, cs in list(cands.items()):
-            # A content link settles ownership: to one of the candidates' subjects, or to someone
-            # else entirely, in which case no candidate may take the resource.
-            owners = {uid for uid in self.links if rid in self.links[uid]}
-            direct = {c for c in cs if subj[c] in owners}
-            if direct:
-                cands[rid] = direct
-                continue
-            if owners:
-                del cands[rid]
-                continue
-            # Otherwise keep candidates whose own evidence files observed this resource.
-            seen_in = {ob.file_id for ob in self.obs_by_rid.get(rid, [])}
-            scoped = {c for c in cs if files[c] & seen_in}
-            if scoped:
-                cands[rid] = scoped
-        # Claims as a tie-breaker for account deletes: the run's result mirrors the reported status.
+        # Score every (resource, request) pair; lower is a better fit.
+        pairs = []
         for rid, cs in cands.items():
+            owners = {uid for uid in self.links if rid in self.links[uid]}
+            if owners and not any(subj[c] in owners for c in cs):
+                continue                      # the record demonstrably belongs to someone else
             a = acts[rid]
-            if len(cs) > 1 and system_of(rid) == "account_service":
-                match = {c for c in cs if CLAIM_MATCH.get(by_case[c].reported_status) == a.reported_result}
-                if match:
-                    cands[rid] = match
-        # Elimination: one resource of a system per request; repeat until stable.
+            seen_in = {ob.file_id for ob in self.obs_by_rid.get(rid, [])}
+            for c in cs:
+                if owners and subj[c] not in owners:
+                    continue
+                cost = -100.0 if owners else 0.0                    # content link
+                cost -= 10.0 if files[c] & seen_in else 0.0         # observed in the request's own evidence
+                if system_of(rid) == "account_service":
+                    # The run's result mirrors the request's reported status (a claim, used only
+                    # to pair records with requests) and the account goes first, about an hour
+                    # before the report.
+                    claim = CLAIM_MATCH.get(by_case[c].reported_status) == a.reported_result
+                    cost += -20.0 if claim else 20.0
+                    dt = (ts(a.event_time) - ts(by_case[c].reported_at)).total_seconds() / 3600
+                    cost += abs(dt + 1.0)
+                pairs.append((cost, a.event_time, rid, c, len(cs)))
+        # Greedy matching: each resource to one request, one resource of each system per request.
         assigned: dict[str, str] = {}
         taken: set[tuple[str, str]] = set()
-        changed = True
-        while changed:
-            changed = False
-            for rid in sorted(cands):
-                if rid in assigned:
-                    continue
-                sysid = system_of(rid)
-                live = {c for c in cands[rid] if (c, sysid) not in taken}
-                if len(live) == 1:
-                    c = next(iter(live))
-                    assigned[rid] = c
-                    taken.add((c, sysid))
-                    changed = True
-        # Remaining ties: pair resources and requests in time order (deterministic).
-        for rid in sorted(set(cands) - set(assigned), key=lambda r: (acts[r].event_time, r)):
+        for cost, _, rid, c, n in sorted(pairs):
             sysid = system_of(rid)
-            live = sorted(c for c in cands[rid] if (c, sysid) not in taken)
-            if live:
-                assigned[rid] = live[0]
-                taken.add((live[0], sysid))
-                self.run_notes[rid] = f"tie between {len(live)} requests"
+            if rid in assigned or (c, sysid) in taken:
+                continue
+            assigned[rid] = c
+            taken.add((c, sysid))
+            if n > 1:
+                self.run_notes[rid] = f"chosen among {n} requests (cost {cost:.1f})"
         self.run_owner = assigned
         self.run_acts = acts
 

@@ -18,7 +18,7 @@ DELETION = [
 NON_DELETION = [
     r"not (?:a request|asking) (?:to erase|for deletion)", r"\bdon'?t (?:delete|close)", r"\bdo not (?:delete|close)",
     r"without removing", r"leave (?:the|my) (?:account|profile)", r"keep the account", r"marketing lists only",
-    r"stop the promotional", r"\bcopy of\b", r"download my account information", r"portable format",
+    r"stop the promotional", r"send me a copy", r"need a copy of", r"download my account information", r"portable format",
     r"\bcorrect it\b", r"misspelled", r"reset(?:ting)? the login", r"change the email address",
     r"replace it with the new one", r"what personal information you hold", r"continue using the service",
     r"\bstill use it\b", r"\bstill need the account\b",
