@@ -18,7 +18,7 @@ ordering) is deterministic Python; screenshots are read with local OCR.
 | Item | Value |
 |---|---|
 | Requests audited | 518 |
-| Status counts | COMPLETE 159, INCOMPLETE 349, NOT_APPLICABLE 10 |
+| Status counts | COMPLETE 149, INCOMPLETE 359, NOT_APPLICABLE 10 |
 | Evidence files parsed | 94 (.json 28, .log 26, .pdf 4, .png 11, .sql 24, .txt 1) |
 | Observations extracted | 2894 |
 | Screenshots | Tesseract not installed: the 11 screenshots were skipped |

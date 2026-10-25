@@ -61,7 +61,7 @@ def system_of(resource_id: str) -> str | None:
     return PREFIX_SYSTEM.get(prefix)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Request:
     case_id: str
     email: str
@@ -72,7 +72,7 @@ class Request:
     request_text: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Activity:
     activity_id: str
     event_time: str
@@ -88,8 +88,8 @@ class Activity:
 class Observation:
     """One fact an evidence file states about one resource.
 
-    `ids` are identifiers found inside the record itself (proof of ownership). `keys` are values
-    a lookup was keyed by (a query, which proves nothing when the lookup returned nothing).
+    `ids` are the identifiers that prove ownership: found inside the record itself, or the key of a
+    lookup that found the record (a lookup that found nothing proves nothing).
     """
     file_id: str
     captured_at: str
@@ -97,8 +97,7 @@ class Observation:
     resource_id: str
     state: str
     category: str | None = None
-    ids: frozenset = frozenset()
-    keys: frozenset = frozenset()
+    ids: frozenset[str] = frozenset()
     source: str = ""
     detail: str = ""
 
@@ -120,5 +119,5 @@ class Step:
 class CaseResult:
     case_id: str
     status: str
-    steps: list = field(default_factory=list)
-    notes: list = field(default_factory=list)
+    steps: list[Step] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)

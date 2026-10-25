@@ -15,6 +15,7 @@ class IdentityIndex:
     def __init__(self, ds: Dataset):
         self.users = {u["user_id"]: u for u in ds.identities}
         self.alias_owner: dict[str, str] = {}
+        self.ambiguous: set[str] = set()     # aliases claimed by more than one person
         self.aliases: dict[str, set[str]] = defaultdict(set)
         for u in ds.identities:
             uid = u["user_id"]
@@ -36,12 +37,14 @@ class IdentityIndex:
     def _add(self, uid: str, alias: str) -> None:
         if not alias:
             return
-        self.alias_owner.setdefault(alias, uid)
+        if self.alias_owner.setdefault(alias, uid) != uid:
+            self.ambiguous.add(alias)
         self.aliases[uid].add(alias)
 
     def subject(self, email: str) -> str | None:
         """The user a request email belongs to, via a current or historical address."""
-        return self.alias_owner.get(norm_email(email))
+        return self.owner(norm_email(email))
 
     def owner(self, alias: str) -> str | None:
-        return self.alias_owner.get(alias)
+        """The one person an identifier belongs to; None when unknown or shared by several people."""
+        return None if alias in self.ambiguous else self.alias_owner.get(alias)

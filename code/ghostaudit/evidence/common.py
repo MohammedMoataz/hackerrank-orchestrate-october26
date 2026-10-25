@@ -137,5 +137,5 @@ def ledger_observation(file_id, captured_at, rec: dict, id_field: str, source: s
     if system == "integration_service":
         category = "DATA_FLOW"
     return Observation(file_id, captured_at, system, rid, state, category,
-                       frozenset(ids_in_value(rec.get(id_field), id_field)), frozenset(), source,
+                       frozenset(ids_in_value(rec.get(id_field), id_field)), source,
                        f"{rec.get('record_type')}={rec.get('result')}")

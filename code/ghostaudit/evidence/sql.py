@@ -44,6 +44,6 @@ def parse(path, file_id, captured_at) -> list[Observation]:
                 continue
             state, category = state_of_record(system, rec, collection)
             out.append(Observation(file_id, captured_at, system, rid, state, category,
-                                   frozenset(record_ids(rec)), frozenset(), "sql", table))
+                                   frozenset(record_ids(rec)), "sql", table))
     con.close()
     return out

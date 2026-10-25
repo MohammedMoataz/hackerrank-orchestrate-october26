@@ -42,7 +42,7 @@ def parse(path, file_id, captured_at, enabled=True, stats=None) -> list[Observat
         if not system:
             continue
         state, category = screen_state(system, text)
-        out.append(Observation(file_id, captured_at, system, rid, state, category, frozenset(ids), frozenset(),
+        out.append(Observation(file_id, captured_at, system, rid, state, category, frozenset(ids),
                                "ocr", path.name))
     return out
 

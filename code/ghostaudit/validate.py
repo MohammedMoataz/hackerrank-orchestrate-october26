@@ -26,7 +26,11 @@ def validate(output_path, requests, evidence_files) -> list[str]:
     expected = [r.case_id for r in requests]
     if ids != expected:
         errors.append(f"case ids/order differ from input ({len(ids)} rows, {len(expected)} expected)")
-    for case_id, status, raw in rows:
+    for row in rows:
+        if len(row) != 3:
+            errors.append(f"row {row[:1]}: expected 3 columns, got {len(row)}")
+            continue
+        case_id, status, raw = row
         if status not in STATUSES:
             errors.append(f"{case_id}: bad status {status}")
         try:
@@ -36,6 +40,8 @@ def validate(output_path, requests, evidence_files) -> list[str]:
             continue
         if status == "NOT_APPLICABLE" and steps:
             errors.append(f"{case_id}: NOT_APPLICABLE must have []")
+        if status == "COMPLETE" and not steps:
+            errors.append(f"{case_id}: COMPLETE needs evidence-backed verification steps")
         prev = None
         for i, s in enumerate(steps, 1):
             if set(s) != FIELDS:

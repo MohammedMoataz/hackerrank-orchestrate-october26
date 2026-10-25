@@ -41,7 +41,7 @@ EXPECTED_ACCOUNT_OFFSET_H = -1.0
 
 class Link(NamedTuple):
     time: str        # capture or event time of the source
-    kind: str        # "content" | "catalog" | "lookup-key"
+    kind: str        # "content" | "catalog"
     source: str      # evidence file id or activity id
 
 
@@ -56,20 +56,17 @@ class Linker:
         self.is_deletion = is_deletion
         self.obs_by_rid: dict[str, list[Observation]] = defaultdict(list)
         self.links: dict[str, dict[str, list[Link]]] = defaultdict(lambda: defaultdict(list))   # user -> resource
-        self.weak: dict[str, dict[str, list[Link]]] = defaultdict(lambda: defaultdict(list))
         self.owners_of: dict[str, set[str]] = defaultdict(set)                                  # resource -> users
         for ob in observations:
             self.obs_by_rid[ob.resource_id].append(ob)
             for uid in {idx.owner(i) for i in ob.ids} - {None}:
                 self._link(uid, ob.resource_id, Link(ob.captured_at, "content", ob.file_id))
-            for uid in {idx.owner(k) for k in ob.keys} - {None}:
-                self.weak[uid][ob.resource_id].append(Link(ob.captured_at, "lookup-key", ob.file_id))
         for a in ds.activities:
             if a.event_type == "LINK_RESOURCE_IDENTITY" and (m := CATALOG_RE.search(a.details)):
                 rid, _ref, _email, uid = m.groups()
                 self._link(uid, rid, Link(a.event_time, "catalog", a.activity_id))
         self.run_owner: dict[str, str] = {}          # resource -> case_id, from joint run attribution
-        self.run_acts: dict[str, Activity] = {}
+        self.run_acts: dict[tuple[str, str], Activity] = {}   # (resource, case_id) -> action
         self.run_notes: dict[str, str] = {}
         self._attribute_runs()
 
@@ -111,7 +108,7 @@ class Linker:
                 if owners and subj[c] not in owners:
                     continue
                 cost = self._cost(rid, by_case[c], bool(owners), bool(files[c] & self._files_observing(rid)))
-                pairs.append((cost, self.run_acts[rid].event_time, rid, c, len(cs)))
+                pairs.append((cost, self.run_acts[rid, c].event_time, rid, c, len(cs)))
         self._match(pairs)
 
     def _candidates(self, reqs: list[Request], subj: dict) -> dict[str, set[str]]:
@@ -125,7 +122,7 @@ class Linker:
                 if system_of(a.resource_id) == "account_service":
                     if a.event_type != "DELETE_RECORD" or ts(a.event_time) > rep + ACCOUNT_AFTER:
                         continue
-                self.run_acts[a.resource_id] = a
+                self.run_acts[a.resource_id, r.case_id] = a
                 cands[a.resource_id].add(r.case_id)
         return cands
 
@@ -133,7 +130,7 @@ class Linker:
         return {ob.file_id for ob in self.obs_by_rid.get(rid, [])}
 
     def _cost(self, rid: str, req: Request, content_link: bool, own_evidence: bool) -> float:
-        a = self.run_acts[rid]
+        a = self.run_acts[rid, req.case_id]
         cost = (COST_CONTENT_LINK if content_link else 0.0) + (COST_OWN_EVIDENCE if own_evidence else 0.0)
         if system_of(rid) == "account_service":
             # The run's result mirrors the request's reported status (a claim, used only to pair

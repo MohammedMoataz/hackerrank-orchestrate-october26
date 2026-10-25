@@ -27,10 +27,9 @@ def parse_ledger_text(path, file_id, captured_at) -> list[Observation]:
 
 
 def pdf_text(path) -> str:
-    try:
-        return subprocess.run(["pdftotext", "-layout", str(path), "-"], capture_output=True, text=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
-        return ""
+    """Text of a PDF via poppler's pdftotext. Raises if the tool is missing or fails, so the run
+    summary reports the file instead of silently treating it as empty."""
+    return subprocess.run(["pdftotext", "-layout", str(path), "-"], capture_output=True, text=True, check=True).stdout
 
 
 def parse_pdf(path, file_id, captured_at) -> list[Observation]:
@@ -48,6 +47,6 @@ def parse_pdf(path, file_id, captured_at) -> list[Observation]:
             category = "SUPPORT_ATTACHMENT"
         elif system == "security_service":
             category = "SECURITY_AUDIT_LOG"
-        out.append(Observation(file_id, captured_at, system, rid, "PRESENT", category, frozenset(ids), frozenset(),
+        out.append(Observation(file_id, captured_at, system, rid, "PRESENT", category, frozenset(ids),
                                "pdf", "document"))
     return out

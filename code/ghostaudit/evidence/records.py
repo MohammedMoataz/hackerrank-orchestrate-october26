@@ -43,6 +43,6 @@ def _collection(recs, collection, file_id, captured_at, source) -> list[Observat
         hits = rec.get("hits")
         if isinstance(hits, dict):                                   # index query: the documents are the content
             ids = record_ids({"documents": hits.get("documents", [])})
-        out.append(Observation(file_id, captured_at, system, rid, state, category, frozenset(ids), frozenset(),
+        out.append(Observation(file_id, captured_at, system, rid, state, category, frozenset(ids),
                                source, collection))
     return out

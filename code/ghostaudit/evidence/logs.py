@@ -88,7 +88,8 @@ def _outcome(ev: dict) -> tuple[str | None, str | None, str]:
         found = str(rows) not in ("0", "")
         return (PRESENT if found else ABSENT), "SECONDARY_IDENTIFIER", (POSITIVE if found else NEGATIVE)
     if e == "deletion_marker_check":
-        return (PRESENT if truthy(ev.get("marker_found")) is False else ABSENT), "SECONDARY_IDENTIFIER", POSITIVE
+        remains = truthy(ev.get("marker_found")) is False
+        return (PRESENT if remains else ABSENT), "SECONDARY_IDENTIFIER", (POSITIVE if remains else NEGATIVE)
     if e.startswith("audit_record_read"):
         found = str(rows) not in ("0",)
         return (PRESENT if found else ABSENT), "SECURITY_AUDIT_LOG", (POSITIVE if found else NEGATIVE)
@@ -143,8 +144,8 @@ def parse(path, file_id, captured_at) -> list[Observation]:
             for k in CONTENT_FIELDS:
                 if k in kv:
                     content |= ids_in_value(kv[k], k)
+            # A lookup key counts as ownership only when the lookup found the record.
             ids = content | (keys if polarity == POSITIVE else set())
-            weak = keys if polarity == NEGATIVE else set()
             out.append(Observation(file_id, captured_at, system, rid, state, category, frozenset(ids),
-                                   frozenset(weak), "log", str(kv.get("event", ""))))
+                                   "log", str(kv.get("event", ""))))
     return out

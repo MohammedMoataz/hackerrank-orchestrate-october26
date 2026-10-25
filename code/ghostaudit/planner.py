@@ -63,7 +63,8 @@ class Auditor:
                 later = self.states.any_observation(rid) if rid in retained else None
                 if later:
                     t = policy.treatment(later.category, later.system_id)
-                    out.append(Record(rid, later.system_id, "PRESENT", t, "", "retained, identified later"))
+                    if t is not None:
+                        out.append(Record(rid, later.system_id, "PRESENT", t, "", "retained, identified later"))
                 continue
             t = policy.treatment(ob.category, ob.system_id)
             if t is not None:
@@ -112,12 +113,18 @@ class Auditor:
             status, steps = "INCOMPLETE", self._plan_incomplete(recs, violations)
         else:
             status, steps = "COMPLETE", self._plan_complete(req, recs)
+            if not steps:
+                # Finding nothing is not proof that the data is gone: without a single cited check the
+                # deletion cannot be confirmed, so it stays open.
+                status = "INCOMPLETE"
         unique = {(s.operation, s.system_id, s.resource_id): s for s in steps}
         ordered = sorted(unique.values(), key=Step.sort_key)
         if any(OP_PHASE[s.operation] != s.phase for s in ordered):
             raise ValueError(f"{req.case_id}: step phase does not match its operation")
-        notes = [f"subject {uid}", why] + [f"{r.resource_id}: {r.state} via {r.how} ({r.evidence or 'no file'})"
-                                           for r in recs]
+        notes = [f"subject {uid}", why] + [
+            f"{r.resource_id}: {r.state} via {r.how} ({r.evidence or 'no file'})"
+            + (f"; {self.linker.run_notes[r.resource_id]}" if r.resource_id in self.linker.run_notes else "")
+            for r in recs]
         return CaseResult(req.case_id, status, ordered, notes)
 
 
